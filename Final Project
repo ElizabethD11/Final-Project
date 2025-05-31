@@ -1,1 +1,143 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import java.util.ArrayList;
+
+// === Song Class ===
+class Song implements Serializable {
+    private String title;
+    private String artist;
+    private double duration;
+    private String genre;
+
+    public Song(String title, String artist, double duration, String genre) {
+        this.title = title;
+        this.artist = artist;
+        this.duration = duration;
+        this.genre = genre;
+    }
+
+    public String getTitle() { return title; }
+    public String getArtist() { return artist; }
+    public double getDuration() { return duration; }
+    public String getGenre() { return genre; }
+
+    public void setTitle(String title) { this.title = title; }
+    public void setArtist(String artist) { this.artist = artist; }
+    public void setDuration(double duration) { this.duration = duration; }
+    public void setGenre(String genre) { this.genre = genre; }
+
+    @Override
+    public String toString() {
+        return title + " by " + artist + " (" + duration + " mins, " + genre + ")";
+    }
+}
+
+// === Playlist Class ===
+class Playlist implements Serializable {
+    private String name;
+    private ArrayList<Song> songs;
+
+    public Playlist(String name) {
+        this.name = name;
+        this.songs = new ArrayList<>();
+    }
+
+    public String getName() { return name; }
+    public ArrayList<Song> getSongs() { return songs; }
+
+    public void addSong(Song song) {
+        songs.add(song);
+    }
+
+    public void removeSong(String title) {
+        songs.removeIf(song -> song.getTitle().equalsIgnoreCase(title));
+    }
+
+    public void listSongs() {
+        for (Song song : songs) {
+            System.out.println(song);
+        }
+    }
+}
+
+// === FileHandler Class ===
+class FileHandler {
+    public static void saveToFile(Object data, String filename) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filename))) {
+            oos.writeObject(data);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static Object readFromFile(String filename) {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
+            return ois.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+}
+
+// === Main GUI Class ===
+public class MusicPlaylistManagerApp {
+    private JFrame frame;
+    private Playlist playlist;
+
+    public MusicPlaylistManagerApp() {
+        playlist = new Playlist("My Playlist");
+        frame = new JFrame("Music Playlist Manager");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(500, 400);
+
+        JPanel panel = new JPanel();
+        panel.setLayout(new GridLayout(4, 1, 10, 10));
+
+        JButton addButton = new JButton("Add Song");
+        JButton viewButton = new JButton("View Playlist");
+        JButton saveButton = new JButton("Save Playlist");
+        JButton exitButton = new JButton("Exit");
+
+        panel.add(addButton);
+        panel.add(viewButton);
+        panel.add(saveButton);
+        panel.add(exitButton);
+
+        frame.getContentPane().add(panel, BorderLayout.CENTER);
+        frame.setVisible(true);
+
+        addButton.addActionListener(e -> {
+            String title = JOptionPane.showInputDialog("Enter Song Title:");
+            String artist = JOptionPane.showInputDialog("Enter Artist:");
+            double duration = Double.parseDouble(JOptionPane.showInputDialog("Enter Duration (minutes):"));
+            String genre = JOptionPane.showInputDialog("Enter Genre:");
+
+            Song song = new Song(title, artist, duration, genre);
+            playlist.addSong(song);
+            JOptionPane.showMessageDialog(frame, "Song added successfully!");
+        });
+
+        viewButton.addActionListener(e -> {
+            StringBuilder sb = new StringBuilder("Songs in Playlist:\n");
+            for (Song song : playlist.getSongs()) {
+                sb.append(song.toString()).append("\n");
+            }
+            JOptionPane.showMessageDialog(frame, sb.toString());
+        });
+
+        saveButton.addActionListener(e -> {
+            FileHandler.saveToFile(playlist, "playlist.ser");
+            JOptionPane.showMessageDialog(frame, "Playlist saved to file!");
+        });
+
+        exitButton.addActionListener(e -> System.exit(0));
+    }
+
+    public static void main(String[] args) {
+        new MusicPlaylistManagerApp();
+    }
+}
 
