@@ -1,63 +1,72 @@
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
-import java.util.ArrayList;
+import java.util.LinkedList;
 
-// === Song Class ===
-class Song implements Serializable {
+// === Media Superclass ===
+abstract class Media implements Serializable {
     private String title;
-    private String artist;
     private double duration;
-    private String genre;
 
-    public Song(String title, String artist, double duration, String genre) {
+    public Media(String title, double duration) {
         this.title = title;
-        this.artist = artist;
         this.duration = duration;
-        this.genre = genre;
     }
 
     public String getTitle() { return title; }
-    public String getArtist() { return artist; }
     public double getDuration() { return duration; }
-    public String getGenre() { return genre; }
 
     public void setTitle(String title) { this.title = title; }
-    public void setArtist(String artist) { this.artist = artist; }
     public void setDuration(double duration) { this.duration = duration; }
+
+    public abstract String getDetails();
+}
+
+// === Song Class ===
+class Song extends Media {
+    private String artist;
+    private String genre;
+
+    public Song(String title, String artist, double duration, String genre) {
+        super(title, duration);
+        this.artist = artist;
+        this.genre = genre;
+    }
+
+    public String getArtist() { return artist; }
+    public String getGenre() { return genre; }
+
+    public void setArtist(String artist) { this.artist = artist; }
     public void setGenre(String genre) { this.genre = genre; }
 
     @Override
-    public String toString() {
-        return title + " by " + artist + " (" + duration + " mins, " + genre + ")";
+    public String getDetails() {
+        return getTitle() + " by " + artist + " (" + getDuration() + " mins, " + genre + ")";
     }
 }
 
 // === Playlist Class ===
 class Playlist implements Serializable {
     private String name;
-    private ArrayList<Song> songs;
+    private LinkedList<Song> songs;
 
     public Playlist(String name) {
         this.name = name;
-        this.songs = new ArrayList<>();
+        this.songs = new LinkedList<>();
     }
 
     public String getName() { return name; }
-    public ArrayList<Song> getSongs() { return songs; }
+    public LinkedList<Song> getSongs() { return songs; }
 
     public void addSong(Song song) {
         songs.add(song);
     }
 
-    public void removeSong(String title) {
-        songs.removeIf(song -> song.getTitle().equalsIgnoreCase(title));
-    }
-
-    public void listSongs() {
-        for (Song song : songs) {
-            System.out.println(song);
+    public void removeSong(int index) {
+        if (index >= 0 && index < songs.size()) {
+            songs.remove(index);
         }
     }
 }
@@ -76,7 +85,6 @@ class FileHandler {
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filename))) {
             return ois.readObject();
         } catch (IOException | ClassNotFoundException e) {
-            e.printStackTrace();
             return null;
         }
     }
@@ -85,59 +93,91 @@ class FileHandler {
 // === Main GUI Class ===
 public class MusicPlaylistManagerApp {
     private JFrame frame;
+    private JTable table;
+    private DefaultTableModel model;
     private Playlist playlist;
 
     public MusicPlaylistManagerApp() {
-        playlist = new Playlist("My Playlist");
+        playlist = (Playlist) FileHandler.readFromFile("playlist.ser");
+        if (playlist == null) playlist = new Playlist("My Playlist");
+
         frame = new JFrame("Music Playlist Manager");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(500, 400);
+        frame.setSize(600, 400);
 
-        JPanel panel = new JPanel();
-        panel.setLayout(new GridLayout(4, 1, 10, 10));
+        JPanel panel = new JPanel(new BorderLayout());
+        model = new DefaultTableModel(new Object[]{"Title", "Artist", "Duration", "Genre"}, 0);
+        table = new JTable(model);
+        refreshTable();
 
-        JButton addButton = new JButton("Add Song");
-        JButton viewButton = new JButton("View Playlist");
-        JButton saveButton = new JButton("Save Playlist");
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 5, 5, 5));
+        JButton addButton = new JButton("Add");
+        JButton deleteButton = new JButton("Delete");
+        JButton saveButton = new JButton("Save");
+        JButton loadButton = new JButton("Load");
         JButton exitButton = new JButton("Exit");
 
-        panel.add(addButton);
-        panel.add(viewButton);
-        panel.add(saveButton);
-        panel.add(exitButton);
+        buttonPanel.add(addButton);
+        buttonPanel.add(deleteButton);
+        buttonPanel.add(saveButton);
+        buttonPanel.add(loadButton);
+        buttonPanel.add(exitButton);
 
-        frame.getContentPane().add(panel, BorderLayout.CENTER);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+        frame.add(panel);
         frame.setVisible(true);
 
-        addButton.addActionListener(e -> {
-            String title = JOptionPane.showInputDialog("Enter Song Title:");
-            String artist = JOptionPane.showInputDialog("Enter Artist:");
-            double duration = Double.parseDouble(JOptionPane.showInputDialog("Enter Duration (minutes):"));
-            String genre = JOptionPane.showInputDialog("Enter Genre:");
-
-            Song song = new Song(title, artist, duration, genre);
-            playlist.addSong(song);
-            JOptionPane.showMessageDialog(frame, "Song added successfully!");
-        });
-
-        viewButton.addActionListener(e -> {
-            StringBuilder sb = new StringBuilder("Songs in Playlist:\n");
-            for (Song song : playlist.getSongs()) {
-                sb.append(song.toString()).append("\n");
-            }
-            JOptionPane.showMessageDialog(frame, sb.toString());
-        });
-
-        saveButton.addActionListener(e -> {
-            FileHandler.saveToFile(playlist, "playlist.ser");
-            JOptionPane.showMessageDialog(frame, "Playlist saved to file!");
-        });
-
+        addButton.addActionListener(e -> addSong());
+        deleteButton.addActionListener(e -> deleteSong());
+        saveButton.addActionListener(e -> savePlaylist());
+        loadButton.addActionListener(e -> loadPlaylist());
         exitButton.addActionListener(e -> System.exit(0));
     }
 
+    private void addSong() {
+        String title = JOptionPane.showInputDialog("Enter Song Title:");
+        String artist = JOptionPane.showInputDialog("Enter Artist:");
+        double duration = Double.parseDouble(JOptionPane.showInputDialog("Enter Duration (minutes):"));
+        String genre = JOptionPane.showInputDialog("Enter Genre:");
+
+        Song song = new Song(title, artist, duration, genre);
+        playlist.addSong(song);
+        refreshTable();
+    }
+
+    private void deleteSong() {
+        int selectedRow = table.getSelectedRow();
+        if (selectedRow >= 0) {
+            playlist.removeSong(selectedRow);
+            refreshTable();
+        }
+    }
+
+    private void refreshTable() {
+        model.setRowCount(0);
+        for (Song song : playlist.getSongs()) {
+            model.addRow(new Object[]{song.getTitle(), song.getArtist(), song.getDuration(), song.getGenre()});
+        }
+    }
+
+    private void savePlaylist() {
+        FileHandler.saveToFile(playlist, "playlist.ser");
+        JOptionPane.showMessageDialog(frame, "Playlist saved.");
+    }
+
+    private void loadPlaylist() {
+        Playlist loaded = (Playlist) FileHandler.readFromFile("playlist.ser");
+        if (loaded != null) {
+            playlist = loaded;
+            refreshTable();
+            JOptionPane.showMessageDialog(frame, "Playlist loaded.");
+        } else {
+            JOptionPane.showMessageDialog(frame, "Failed to load playlist.");
+        }
+    }
+
     public static void main(String[] args) {
-        new MusicPlaylistManagerApp();
+        SwingUtilities.invokeLater(MusicPlaylistManagerApp::new);
     }
 }
-
